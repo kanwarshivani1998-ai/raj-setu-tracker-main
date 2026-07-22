@@ -1,0 +1,101 @@
+name: build-apk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Bump patch version
+        id: version
+        run: |
+          npm --no-git-tag-version version patch
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build React app
+        run: bun run build
+
+      - name: Install Capacitor CLI
+        run: bun add -d @capacitor/cli @capacitor/assets
+
+      - name: Add Android platform
+        run: |
+          if [ ! -d "android" ]; then
+            bunx cap add android
+          else
+            echo "android/ already exists, skipping cap add"
+          fi
+
+      - name: Sync Capacitor
+        run: bunx cap sync android
+
+      - name: Set native Android version (versionName + versionCode)
+        run: |
+          VERSION_CODE=$(date +%s)
+          cd android
+          sed -i "s/versionName \".*\"/versionName \"${{ steps.version.outputs.version }}\"/" app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" app/build.gradle
+
+      - name: Generate App Icons from assets/icon.png
+        run: |
+          mkdir -p resources
+          cp public/icon-512.png resources/icon.png
+          cp public/icon-512.png resources/splash.png
+          bunx capacitor-assets generate --android
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK with version
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "release/RajSetuTracker-v${{ steps.version.outputs.version }}.apk"
+
+      - name: Upload APK (build artifact, optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: RajSetuTracker-apk
+          path: release/*.apk
+
+      - name: Publish GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-${{ github.run_number }}
+          name: Rajasthan CET Tracker v${{ steps.version.outputs.version }}
+          files: release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
