@@ -1,0 +1,16 @@
+{
+  "name": "Rajasthan CET Study Tracker",
+  "short_name": "CET Tracker",
+  "description": "राजस्थान CET (स्नातक स्तर) परीक्षा की तैयारी के लिए ऑफलाइन अध्ययन ट्रैकर।",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbf7ee",
+  "theme_color": "#e08a3c",
+  "orientation": "portrait",
+  "lang": "hi",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
