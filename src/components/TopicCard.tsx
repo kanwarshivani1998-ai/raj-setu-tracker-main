@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
-import { Bookmark, BookmarkCheck, Check, Clock, Repeat, StickyNote, ChevronDown, Sparkles } from "lucide-react";
+import { Bookmark, BookmarkCheck, Check, Clock, Repeat, StickyNote, ChevronDown, Sparkles, FileText, HelpCircle } from "lucide-react";
 import { useData } from "@/lib/db/DataContext";
 import { useTopicContent } from "@/lib/content/TopicContentContext";
 import type { Topic, Difficulty } from "@/lib/syllabus/syllabusData";
+import MCQTest from "@/components/MCQTest"; // MCQ Test Import
 
 interface Props {
   topic: Topic;
@@ -23,8 +24,11 @@ export function TopicCard({ topic, contextLabel }: Props) {
   const state = topicStates[topic.id];
   const [open, setOpen] = useState(false);
   const [burst, setBurst] = useState(0);
+  
+  // Tab control: 'content' (Notes/Keypoints) ya 'test' (MCQ Quiz)
+  const [activeTab, setActiveTab] = useState<"content" | "test">("content");
 
-  // Online (Supabase) se aaya hua "important points" content — agar us topic ke liye hai to.
+  // Online (Supabase) se aaya hua "important points" content
   const onlineContent = useTopicContent(topic.id);
 
   const completed = !!state?.isCompleted;
@@ -130,66 +134,107 @@ export function TopicCard({ topic, contextLabel }: Props) {
             className="overflow-hidden"
           >
             <div className="mt-3 space-y-3 border-t border-border pt-3">
-              {onlineContent?.keyPoints?.length ? (
-                <div>
-                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                    <Sparkles className="h-3.5 w-3.5" /> मुख्य बिंदु
-                  </label>
-                  <ul className="space-y-1.5 rounded-lg bg-muted/40 px-3 py-2.5 text-sm">
-                    {onlineContent.keyPoints.map((point, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                        <span>{point}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">कठिनाई स्तर</label>
-                <div className="flex gap-2">
-                  {DIFFICULTIES.map((d) => {
-                    const active = diff === d;
-                    return (
-                      <button
-                        key={d}
-                        onClick={() => setDifficulty(topic.id, d)}
-                        className="flex-1 rounded-lg border px-2 py-2 text-xs font-semibold transition touch-tap"
-                        style={{
-                          borderColor: active ? DIFF_COLORS[d] : "var(--color-border)",
-                          background: active ? `color-mix(in oklab, ${DIFF_COLORS[d]} 18%, transparent)` : "transparent",
-                          color: active ? DIFF_COLORS[d] : "var(--color-foreground)",
-                        }}
-                      >
-                        {d}
-                      </button>
-                    );
-                  })}
-                </div>
+              
+              {/* TOP TABS: Study Material vs MCQ Practice Test */}
+              <div className="flex rounded-lg border border-border bg-muted/30 p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("content")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition ${
+                    activeTab === "content"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5" /> अध्ययन सामग्री
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("test")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition ${
+                    activeTab === "test"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <HelpCircle className="h-3.5 w-3.5" /> MCQ टेस्ट (100 Qs)
+                </button>
               </div>
 
-              <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <StickyNote className="h-3.5 w-3.5" /> नोट्स
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(topic.id, e.target.value)}
-                  placeholder="यहाँ अपने नोट्स लिखें…"
-                  rows={3}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                />
-              </div>
+              {/* TAB 1: STUDY MATERIAL (Pura Purana Code) */}
+              {activeTab === "content" && (
+                <div className="space-y-3">
+                  {onlineContent?.keyPoints?.length ? (
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                        <Sparkles className="h-3.5 w-3.5" /> मुख्य बिंदु
+                      </label>
+                      <ul className="space-y-1.5 rounded-lg bg-muted/40 px-3 py-2.5 text-sm">
+                        {onlineContent.keyPoints.map((point, i) => (
+                          <li key={i} className="flex gap-2">
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-              <button
-                onClick={() => toggleRevision(topic.id)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap"
-                style={forRevision ? { background: "color-mix(in oklab, var(--color-accent) 15%, transparent)", color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
-              >
-                <Repeat className="h-4 w-4" />
-                {forRevision ? "रिवीजन सूची से हटाएँ" : "रिवीजन के लिए चिह्नित करें"}
-              </button>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">कठिनाई स्तर</label>
+                    <div className="flex gap-2">
+                      {DIFFICULTIES.map((d) => {
+                        const active = diff === d;
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => setDifficulty(topic.id, d)}
+                            className="flex-1 rounded-lg border px-2 py-2 text-xs font-semibold transition touch-tap"
+                            style={{
+                              borderColor: active ? DIFF_COLORS[d] : "var(--color-border)",
+                              background: active ? `color-mix(in oklab, ${DIFF_COLORS[d]} 18%, transparent)` : "transparent",
+                              color: active ? DIFF_COLORS[d] : "var(--color-foreground)",
+                            }}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <StickyNote className="h-3.5 w-3.5" /> नोट्स
+                    </label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(topic.id, e.target.value)}
+                      placeholder="यहाँ अपने नोट्स लिखें…"
+                      rows={3}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => toggleRevision(topic.id)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap"
+                    style={forRevision ? { background: "color-mix(in oklab, var(--color-accent) 15%, transparent)", color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+                  >
+                    <Repeat className="h-4 w-4" />
+                    {forRevision ? "रिवीजन सूची से हटाएँ" : "रिवीजन के लिए चिह्नित करें"}
+                  </button>
+                </div>
+              )}
+
+              {/* TAB 2: MCQ TEST COMPONENT */}
+              {activeTab === "test" && (
+                <div className="pt-1">
+                  {/* Default fallback ID bhi added hai agar specific topic id na mile */}
+                  <MCQTest topicId={topic.id || "b1fec999-9c0b-4ef8-bb6d-6bb9bd380a22"} />
+                </div>
+              )}
+
             </div>
           </motion.div>
         )}
