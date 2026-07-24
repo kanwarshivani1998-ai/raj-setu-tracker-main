@@ -9,12 +9,23 @@ interface Question {
   explanation?: string;
 }
 
+// localStorage me progress save karne ki key har topic ke liye alag
+const getStorageKey = (topicId: string) => `mcq_progress_${topicId}`;
+
+interface SavedProgress {
+  currentIndex: number;
+  selectedAnswers: { [key: number]: number };
+  isSubmitted: boolean;
+  filterMode: 'all' | 'wrong' | 'correct';
+}
+
 export default function MCQTest({ topicId }: { topicId: string }) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: number }>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [restored, setRestored] = useState(false);
   
   // Filter State: 'all' | 'wrong' | 'correct'
   const [filterMode, setFilterMode] = useState<'all' | 'wrong' | 'correct'>('all');
@@ -35,7 +46,39 @@ export default function MCQTest({ topicId }: { topicId: string }) {
       setLoading(false);
     }
     fetchQuestions();
+
+    // Pichla saved progress isi topic ke liye restore karna (agar hai to)
+    try {
+      const saved = localStorage.getItem(getStorageKey(topicId));
+      if (saved) {
+        const parsed: SavedProgress = JSON.parse(saved);
+        setCurrentIndex(parsed.currentIndex ?? 0);
+        setSelectedAnswers(parsed.selectedAnswers ?? {});
+        setIsSubmitted(parsed.isSubmitted ?? false);
+        setFilterMode(parsed.filterMode ?? 'all');
+      } else {
+        // Naya topic hai to fresh state se shuru karo
+        setCurrentIndex(0);
+        setSelectedAnswers({});
+        setIsSubmitted(false);
+        setFilterMode('all');
+      }
+    } catch {
+      // localStorage corrupt/unavailable ho to bhi test chalna chahiye
+    }
+    setRestored(true);
   }, [topicId]);
+
+  // Jab bhi progress badle, use turant localStorage me save kar do
+  useEffect(() => {
+    if (!restored) return; // pehle restore ho jaane do, warna default state save ho jayega
+    try {
+      const progress: SavedProgress = { currentIndex, selectedAnswers, isSubmitted, filterMode };
+      localStorage.setItem(getStorageKey(topicId), JSON.stringify(progress));
+    } catch {
+      // storage full/unavailable — ignore, silently fail
+    }
+  }, [topicId, restored, currentIndex, selectedAnswers, isSubmitted, filterMode]);
 
   const handleOptionSelect = (optionIndex: number) => {
     if (isSubmitted) return;
@@ -43,6 +86,19 @@ export default function MCQTest({ topicId }: { topicId: string }) {
       ...selectedAnswers,
       [currentIndex]: optionIndex,
     });
+  };
+
+  // Test ko fresh restart karne ke liye (naya button neeche add kiya hai)
+  const handleRestartTest = () => {
+    setCurrentIndex(0);
+    setSelectedAnswers({});
+    setIsSubmitted(false);
+    setFilterMode('all');
+    try {
+      localStorage.removeItem(getStorageKey(topicId));
+    } catch {
+      // ignore
+    }
   };
 
   // Galat aur Sahi questions ke index nikalna
@@ -75,9 +131,18 @@ export default function MCQTest({ topicId }: { topicId: string }) {
       {/* Header */}
       <div className="flex justify-between items-center border-b border-stone-800 pb-2 mb-3">
         <h4 className="text-sm font-bold text-amber-400">MCQ Practice Test</h4>
-        <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono">
-          Q {currentIndex + 1} / {activeIndices.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono">
+            Q {currentIndex + 1} / {activeIndices.length}
+          </span>
+          <button
+            onClick={handleRestartTest}
+            title="Test ko 1 se dobara shuru karein"
+            className="text-[10px] px-2 py-0.5 rounded border border-stone-700 text-stone-400 hover:text-rose-300 hover:border-rose-500/50"
+          >
+            ↺ Restart
+          </button>
+        </div>
       </div>
 
       {/* Result Scoreboard & Filter Tabs (Test Submit Hone Ke Baad) */}
