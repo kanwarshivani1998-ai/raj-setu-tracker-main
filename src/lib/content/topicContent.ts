@@ -3,12 +3,13 @@ import { supabase } from "./supabaseClient";
 export interface TopicContent {
   topicId: string;
   keyPoints: string[];
+  detailedContent?: string;
   updatedAt?: string;
 }
 
 /**
  * Supabase ke "topic_content" table se saare topics ka important-points
- * content ek hi baar me fetch karta hai (poori app ke liye ek call).
+ * aur detailed-content ek hi baar me fetch karta hai (poori app ke liye ek call).
  * Table schema: supabase_schema.sql dekho.
  */
 export async function fetchAllTopicContent(): Promise<Record<string, TopicContent>> {
@@ -16,7 +17,7 @@ export async function fetchAllTopicContent(): Promise<Record<string, TopicConten
 
   const { data, error } = await supabase
     .from("topic_content")
-    .select("topic_id, key_points, updated_at");
+    .select("topic_id, key_points, detailed_content, updated_at");
 
   if (error) {
     console.error("[topicContent] fetch fail:", error.message);
@@ -28,6 +29,7 @@ export async function fetchAllTopicContent(): Promise<Record<string, TopicConten
     map[row.topic_id as string] = {
       topicId: row.topic_id as string,
       keyPoints: Array.isArray(row.key_points) ? (row.key_points as string[]) : [],
+      detailedContent: (row.detailed_content as string | null) ?? undefined,
       updatedAt: row.updated_at as string | undefined,
     };
   }
