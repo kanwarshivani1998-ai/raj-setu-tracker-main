@@ -55,7 +55,7 @@ export interface PersonalReminder {
 }
 
 const DB_NAME = "rajasthan-cet-tracker";
-const DB_VERSION = 2; // bumped from 1 — adds timetable + personalReminders stores
+const DB_VERSION = 3; // bumped from 2 — adds mcqCache + mcqSyncMeta stores (offline MCQ download)
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -84,10 +84,75 @@ export function getDB() {
         if (!db.objectStoreNames.contains("personalReminders")) {
           db.createObjectStore("personalReminders", { keyPath: "id" });
         }
+        // MCQ questions ka local cache — topic_id ke hisab se, ek baar Supabase se sync ho jaane ke baad
+        // baar baar internet call karne ki zaroorat nahi padti.
+        if (!db.objectStoreNames.contains("mcqCache")) {
+          db.createObjectStore("mcqCache", { keyPath: "topicId" });
+        }
+        if (!db.objectStoreNames.contains("mcqSyncMeta")) {
+          db.createObjectStore("mcqSyncMeta", { keyPath: "key" });
+        }
       },
     });
   }
   return dbPromise;
+}
+
+// ---------- MCQ offline cache helpers ----------
+
+export interface CachedMCQQuestion {
+  id: string;
+  question_text: string;
+  options: string[];
+  correct_option: number;
+  explanation?: string;
+}
+
+interface MCQTopicCacheRow {
+  topicId: string;
+  questions: CachedMCQQuestion[];
+  syncedAt: number;
+}
+
+export interface MCQSyncMeta {
+  key: "mcqSync";
+  lastFullSyncAt?: number; // epoch ms — jab poora Supabase data ek baar download ho gaya
+  totalTopics?: number;
+  totalQuestions?: number;
+}
+
+export async function getCachedMCQ(topicId: string): Promise<CachedMCQQuestion[] | undefined> {
+  const db = await getDB();
+  const row = (await db.get("mcqCache", topicId)) as MCQTopicCacheRow | undefined;
+  return row?.questions;
+}
+
+export async function putCachedMCQ(topicId: string, questions: CachedMCQQuestion[]) {
+  const db = await getDB();
+  const row: MCQTopicCacheRow = { topicId, questions, syncedAt: Date.now() };
+  await db.put("mcqCache", row);
+}
+
+export async function putCachedMCQBulk(byTopic: Record<string, CachedMCQQuestion[]>) {
+  const db = await getDB();
+  const tx = db.transaction("mcqCache", "readwrite");
+  const now = Date.now();
+  await Promise.all(
+    Object.entries(byTopic).map(([topicId, questions]) =>
+      tx.objectStore("mcqCache").put({ topicId, questions, syncedAt: now } as MCQTopicCacheRow)
+    )
+  );
+  await tx.done;
+}
+
+export async function getMCQSyncMeta(): Promise<MCQSyncMeta | undefined> {
+  const db = await getDB();
+  return (await db.get("mcqSyncMeta", "mcqSync")) as MCQSyncMeta | undefined;
+}
+
+export async function setMCQSyncMeta(meta: Omit<MCQSyncMeta, "key">) {
+  const db = await getDB();
+  await db.put("mcqSyncMeta", { key: "mcqSync", ...meta } as MCQSyncMeta);
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -171,6 +236,8 @@ export async function clearAll() {
     db.clear("streak"),
     db.clear("timetable"),
     db.clear("personalReminders"),
+    db.clear("mcqCache"),
+    db.clear("mcqSyncMeta"),
   ]);
 }
 
