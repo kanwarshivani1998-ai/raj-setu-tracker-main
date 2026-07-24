@@ -17,6 +17,7 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { MotivationModal } from "@/components/MotivationModal";
 import { AlarmManager } from "@/components/AlarmManager";
 import { registerServiceWorker } from "@/lib/pwa/registerSW";
+import { syncAllMCQFromSupabase } from "@/lib/content/mcqSync";
 
 function NotFoundComponent() {
   return (
@@ -145,6 +146,20 @@ function RootComponent() {
 
   useEffect(() => {
     registerServiceWorker();
+
+    // App start hote hi (agar internet hai aur pehle poora download nahi hua) MCQ data
+    // ek baar Supabase se local phone (IndexedDB) me download kar lo — uske baad app
+    // baar baar Supabase ko call nahi karega.
+    syncAllMCQFromSupabase().catch(() => {
+      // Offline ya error — koi baat nahi, jab topic khulega tab us ek topic ke liye try hoga
+    });
+
+    // Agar app khulte waqt internet nahi tha, to jaise hi internet wapas aaye tabhi sync kar do
+    const handleOnline = () => {
+      syncAllMCQFromSupabase().catch(() => {});
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
   }, []);
 
   return (

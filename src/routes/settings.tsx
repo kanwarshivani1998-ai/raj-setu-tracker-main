@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useData } from "@/lib/db/DataContext";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bell, BookMarked, CalendarClock, ChevronRight, Clock, Download, Edit3, Moon, Repeat, StickyNote, Sun, Trash2, Upload, Monitor, BarChart3 } from "lucide-react";
+import { Bell, BookMarked, CalendarClock, ChevronRight, Clock, Download, Edit3, Moon, Repeat, StickyNote, Sun, Trash2, Upload, Monitor, BarChart3, RefreshCw } from "lucide-react";
 import { fireNotification, isNotificationSupported, requestNotificationPermission } from "@/lib/notifications/notify";
+import { syncAllMCQFromSupabase } from "@/lib/content/mcqSync";
+import { getMCQSyncMeta } from "@/lib/db/db";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "सेटिंग्स" }, { name: "description", content: "थीम, अधिसूचना, डेटा प्रबंधन।" }] }),
@@ -15,6 +17,32 @@ function SettingsPage() {
   const { settings, updateSettings, resetAll, exportJSON, importJSON } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirming, setConfirming] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncInfo, setSyncInfo] = useState<{ lastFullSyncAt?: number; totalQuestions?: number }>({});
+
+  useEffect(() => {
+    getMCQSyncMeta().then((meta) => {
+      if (meta) setSyncInfo({ lastFullSyncAt: meta.lastFullSyncAt, totalQuestions: meta.totalQuestions });
+    });
+  }, []);
+
+  const handleSyncMCQ = async () => {
+    if (!navigator.onLine) {
+      toast.error("इंटरनेट कनेक्ट करें और फिर कोशिश करें।");
+      return;
+    }
+    setSyncing(true);
+    try {
+      await syncAllMCQFromSupabase(true); // force = true, dobara poora download karo
+      const meta = await getMCQSyncMeta();
+      setSyncInfo({ lastFullSyncAt: meta?.lastFullSyncAt, totalQuestions: meta?.totalQuestions });
+      toast.success(`MCQ डेटा फ़ोन में सेव हो गया (${meta?.totalQuestions ?? 0} प्रश्न)।`);
+    } catch {
+      toast.error("सिंक विफल — बाद में पुनः प्रयास करें।");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleExport = async () => {
     const json = await exportJSON();
@@ -126,6 +154,19 @@ function SettingsPage() {
           <LinkRow to="/revision" icon={Repeat} label="रिवीजन" />
           <LinkRow to="/timetable" icon={Clock} label="टाइम-टेबल व अलार्म" />
           <LinkRow to="/doubts" icon={Edit3} label="मेरे डाउट्स" />
+        </Section>
+
+        <Section title="MCQ टेस्ट डेटा (ऑफलाइन)">
+          <p className="mb-2 text-xs text-muted-foreground">
+            {syncInfo.lastFullSyncAt
+              ? `${syncInfo.totalQuestions ?? 0} प्रश्न फ़ोन में सेव हैं • आखिरी सिंक: ${new Date(syncInfo.lastFullSyncAt).toLocaleString("hi-IN")}`
+              : "अभी तक कोई पूरा सिंक नहीं हुआ — ऐप जब भी इंटरनेट से खुलता है, अपने आप एक बार डाउनलोड हो जाता है।"}
+          </p>
+          <button onClick={handleSyncMCQ} disabled={syncing}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "सिंक हो रहा है…" : "अभी सिंक करें"}
+          </button>
         </Section>
 
         <Section title="डेटा प्रबंधन">
