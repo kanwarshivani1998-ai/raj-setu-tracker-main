@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/content/supabaseClient';
+import { getCachedMCQ, putCachedMCQ } from '@/lib/db/db';
 
 interface Question {
   id: string;
@@ -34,7 +35,21 @@ export default function MCQTest({ topicId }: { topicId: string }) {
     async function fetchQuestions() {
       setLoading(true);
 
-      // Supabase se questions aur explanation fetch karna
+      // Pehle phone ke local cache (IndexedDB) me dekho — agar pehle se sync ho chuka hai
+      // to yahi se turant mil jayega, Supabase ko call karne ki zaroorat hi nahi.
+      const cached = await getCachedMCQ(topicId);
+      if (cached && cached.length > 0) {
+        setQuestions(cached);
+        setLoading(false);
+        return;
+      }
+
+      // Cache me nahi mila (naya topic ya abhi tak sync nahi hua) — tabhi Supabase call karo,
+      // aur jo mile use aage ke liye local me bhi save kar do.
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
       const { data, error } = await supabase
         .from('mcq_questions')
         .select('id, question_text, options, correct_option, explanation')
@@ -42,6 +57,9 @@ export default function MCQTest({ topicId }: { topicId: string }) {
 
       if (!error && data) {
         setQuestions(data);
+        putCachedMCQ(topicId, data).catch(() => {
+          // local save fail ho jaye to bhi test dikhna chahiye
+        });
       }
       setLoading(false);
     }
