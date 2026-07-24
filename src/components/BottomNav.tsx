@@ -1,10 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, BookOpen, Search, Settings } from "lucide-react";
+import { Home, BookOpen, GraduationCap, Search, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 
 const items = [
   { to: "/", label: "मुख्य पृष्ठ", icon: Home, match: (p: string) => p === "/" },
   { to: "/syllabus", label: "पाठ्यक्रम", icon: BookOpen, match: (p: string) => p.startsWith("/syllabus") },
+  { to: "/study", label: "अध्ययन", icon: GraduationCap, match: (p: string) => p.startsWith("/study") },
   { to: "/search", label: "खोजें", icon: Search, match: (p: string) => p.startsWith("/search") },
   { to: "/settings", label: "सेटिंग्स", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];
@@ -16,7 +17,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="mx-auto grid max-w-screen-sm grid-cols-4">
+      <ul className="mx-auto grid max-w-screen-sm grid-cols-5">
         {items.map((it) => {
           const active = it.match(pathname);
           const Icon = it.icon;
