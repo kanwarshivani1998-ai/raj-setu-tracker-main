@@ -8,9 +8,9 @@ export interface TopicContent {
 }
 
 /**
- * Supabase ke "topic_content" table se saare topics ka important-points
- * aur detailed-content ek hi baar me fetch karta hai (poori app ke liye ek call).
- * Table schema: supabase_schema.sql dekho.
+ * Supabase ke "topic_content" table se saare topics ka important-points +
+ * detailed (Gemini-generated) content ek hi baar me fetch karta hai
+ * (poori app ke liye ek call). Table schema: supabase_schema.sql dekho.
  */
 export async function fetchAllTopicContent(): Promise<Record<string, TopicContent>> {
   if (!supabase) return {};
