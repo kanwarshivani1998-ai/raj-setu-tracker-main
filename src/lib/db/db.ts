@@ -55,7 +55,7 @@ export interface PersonalReminder {
 }
 
 const DB_NAME = "rajasthan-cet-tracker";
-const DB_VERSION = 3; // bumped from 2 — adds mcqCache + mcqSyncMeta stores (offline MCQ download)
+const DB_VERSION = 4; // bumped from 3 — adds topicContentCache + topicContentSyncMeta stores (offline study content download)
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -91,6 +91,14 @@ export function getDB() {
         }
         if (!db.objectStoreNames.contains("mcqSyncMeta")) {
           db.createObjectStore("mcqSyncMeta", { keyPath: "key" });
+        }
+        // Study content (key points + detailed article) ka local cache — topic_id ke hisab se,
+        // ek baar Supabase se sync ho jaane ke baad offline hone par bhi dikhta rahe.
+        if (!db.objectStoreNames.contains("topicContentCache")) {
+          db.createObjectStore("topicContentCache", { keyPath: "topicId" });
+        }
+        if (!db.objectStoreNames.contains("topicContentSyncMeta")) {
+          db.createObjectStore("topicContentSyncMeta", { keyPath: "key" });
         }
       },
     });
@@ -153,6 +161,48 @@ export async function getMCQSyncMeta(): Promise<MCQSyncMeta | undefined> {
 export async function setMCQSyncMeta(meta: Omit<MCQSyncMeta, "key">) {
   const db = await getDB();
   await db.put("mcqSyncMeta", { key: "mcqSync", ...meta } as MCQSyncMeta);
+}
+
+// ---------- Study content (key points + detailed article) offline cache helpers ----------
+
+export interface CachedTopicContent {
+  topicId: string;
+  keyPoints: string[];
+  detailedContent?: string;
+  updatedAt?: string;
+}
+
+export interface TopicContentSyncMeta {
+  key: "topicContentSync";
+  lastFullSyncAt?: number; // epoch ms — jab poora Supabase data ek baar download ho gaya
+  totalTopics?: number;
+}
+
+export async function getAllCachedTopicContent(): Promise<Record<string, CachedTopicContent>> {
+  const db = await getDB();
+  const rows = (await db.getAll("topicContentCache")) as CachedTopicContent[];
+  const map: Record<string, CachedTopicContent> = {};
+  for (const row of rows) map[row.topicId] = row;
+  return map;
+}
+
+export async function putCachedTopicContentBulk(byTopic: Record<string, CachedTopicContent>) {
+  const db = await getDB();
+  const tx = db.transaction("topicContentCache", "readwrite");
+  await Promise.all(
+    Object.values(byTopic).map((row) => tx.objectStore("topicContentCache").put(row))
+  );
+  await tx.done;
+}
+
+export async function getTopicContentSyncMeta(): Promise<TopicContentSyncMeta | undefined> {
+  const db = await getDB();
+  return (await db.get("topicContentSyncMeta", "topicContentSync")) as TopicContentSyncMeta | undefined;
+}
+
+export async function setTopicContentSyncMeta(meta: Omit<TopicContentSyncMeta, "key">) {
+  const db = await getDB();
+  await db.put("topicContentSyncMeta", { key: "topicContentSync", ...meta } as TopicContentSyncMeta);
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -238,6 +288,8 @@ export async function clearAll() {
     db.clear("personalReminders"),
     db.clear("mcqCache"),
     db.clear("mcqSyncMeta"),
+    db.clear("topicContentCache"),
+    db.clear("topicContentSyncMeta"),
   ]);
 }
 
