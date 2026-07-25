@@ -3,10 +3,11 @@ import { AppShell } from "@/components/AppShell";
 import { useData } from "@/lib/db/DataContext";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bell, BookMarked, CalendarClock, ChevronRight, Clock, Download, Edit3, Moon, Repeat, StickyNote, Sun, Trash2, Upload, Monitor, BarChart3, RefreshCw } from "lucide-react";
+import { Bell, BookMarked, CalendarClock, ChevronRight, Clock, Download, Edit3, Moon, Repeat, StickyNote, Sun, Trash2, Upload, Monitor, BarChart3, RefreshCw, GraduationCap, Mail } from "lucide-react";
 import { fireNotification, isNotificationSupported, requestNotificationPermission } from "@/lib/notifications/notify";
 import { syncAllMCQFromSupabase } from "@/lib/content/mcqSync";
-import { getMCQSyncMeta } from "@/lib/db/db";
+import { syncAllTopicContentFromSupabase } from "@/lib/content/topicContentSync";
+import { getMCQSyncMeta, getTopicContentSyncMeta } from "@/lib/db/db";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "सेटिंग्स" }, { name: "description", content: "थीम, अधिसूचना, डेटा प्रबंधन।" }] }),
@@ -19,10 +20,15 @@ function SettingsPage() {
   const [confirming, setConfirming] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncInfo, setSyncInfo] = useState<{ lastFullSyncAt?: number; totalQuestions?: number }>({});
+  const [contentSyncing, setContentSyncing] = useState(false);
+  const [contentSyncInfo, setContentSyncInfo] = useState<{ lastFullSyncAt?: number; totalTopics?: number }>({});
 
   useEffect(() => {
     getMCQSyncMeta().then((meta) => {
       if (meta) setSyncInfo({ lastFullSyncAt: meta.lastFullSyncAt, totalQuestions: meta.totalQuestions });
+    });
+    getTopicContentSyncMeta().then((meta) => {
+      if (meta) setContentSyncInfo({ lastFullSyncAt: meta.lastFullSyncAt, totalTopics: meta.totalTopics });
     });
   }, []);
 
@@ -41,6 +47,24 @@ function SettingsPage() {
       toast.error("सिंक विफल — बाद में पुनः प्रयास करें।");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSyncContent = async () => {
+    if (!navigator.onLine) {
+      toast.error("इंटरनेट कनेक्ट करें और फिर कोशिश करें।");
+      return;
+    }
+    setContentSyncing(true);
+    try {
+      await syncAllTopicContentFromSupabase(true); // force = true, dobara poora download karo
+      const meta = await getTopicContentSyncMeta();
+      setContentSyncInfo({ lastFullSyncAt: meta?.lastFullSyncAt, totalTopics: meta?.totalTopics });
+      toast.success(`अध्ययन सामग्री फ़ोन में सेव हो गई (${meta?.totalTopics ?? 0} टॉपिक्स)।`);
+    } catch {
+      toast.error("सिंक विफल — बाद में पुनः प्रयास करें।");
+    } finally {
+      setContentSyncing(false);
     }
   };
 
@@ -169,6 +193,19 @@ function SettingsPage() {
           </button>
         </Section>
 
+        <Section title="अध्ययन सामग्री (ऑफलाइन)">
+          <p className="mb-2 text-xs text-muted-foreground">
+            {contentSyncInfo.lastFullSyncAt
+              ? `${contentSyncInfo.totalTopics ?? 0} टॉपिक्स की सामग्री (मुख्य बिंदु + विस्तृत जानकारी) फ़ोन में सेव है • आखिरी सिंक: ${new Date(contentSyncInfo.lastFullSyncAt).toLocaleString("hi-IN")}`
+              : "अभी तक कोई पूरा सिंक नहीं हुआ — ऐप जब भी इंटरनेट से खुलता है, अपने आप एक बार डाउनलोड हो जाता है।"}
+          </p>
+          <button onClick={handleSyncContent} disabled={contentSyncing}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${contentSyncing ? "animate-spin" : ""}`} />
+            {contentSyncing ? "सिंक हो रहा है…" : "अभी सिंक करें"}
+          </button>
+        </Section>
+
         <Section title="डेटा प्रबंधन">
           <button onClick={handleExport}
                   className="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap">
@@ -198,6 +235,21 @@ function SettingsPage() {
               </div>
             </div>
           )}
+        </Section>
+
+        <Section title="डेवलपर जानकारी">
+          <div className="flex items-start gap-3 py-1.5">
+            <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-bold">Dr. S. S. Rathore Sir</p>
+              <p className="text-xs text-muted-foreground">DMRT, BPT, MPT</p>
+            </div>
+          </div>
+          <a href="mailto:ryashpal18@gmail.com"
+             className="mt-2 flex items-center gap-3 rounded-lg border border-input px-3 py-2.5 text-sm font-medium touch-tap">
+            <Mail className="h-4 w-4 text-primary" />
+            <span className="flex-1">कोई समस्या या बग? ryashpal18@gmail.com</span>
+          </a>
         </Section>
 
         <p className="pb-4 pt-2 text-center text-[11px] text-muted-foreground">
