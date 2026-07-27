@@ -143,6 +143,11 @@ export default function MCQTest({ topicId }: { topicId: string }) {
   const userAns = selectedAnswers[actualIndex];
   const isCorrectAns = userAns === currentQ?.correct_option;
 
+  // Ganit (Math) topics ke liye: option choose karte hi turant sahi jawab + explanation
+  // dikha do, poore test ke Submit ka wait na karna pade. Baaki topics me jaisa tha waisa hi.
+  const isMathTopic = topicId.startsWith('reason-math');
+  const showAnswerNow = isSubmitted || (isMathTopic && userAns !== undefined);
+
   return (
     <div className="bg-stone-950 p-4 rounded-xl border border-stone-800 text-stone-100 mt-2">
       
@@ -213,7 +218,7 @@ export default function MCQTest({ topicId }: { topicId: string }) {
 
               let btnStyle = "w-full text-left p-2.5 rounded-lg border text-xs sm:text-sm font-medium transition-all ";
 
-              if (isSubmitted) {
+              if (showAnswerNow) {
                 if (isCorrect) {
                   btnStyle += "bg-emerald-900/60 border-emerald-500 text-emerald-200 font-bold";
                 } else if (isSelected && !isCorrect) {
@@ -238,7 +243,7 @@ export default function MCQTest({ topicId }: { topicId: string }) {
           </div>
 
           {/* Explanation Box (Submit Ke Baad Dikhne Wala Part) */}
-          {isSubmitted && (
+          {showAnswerNow && (
             <div className="mt-4 p-3 rounded-lg border border-stone-800 bg-stone-900/80 space-y-2 text-xs sm:text-sm">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-stone-400">Status:</span>
