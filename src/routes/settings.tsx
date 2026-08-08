@@ -3,11 +3,13 @@ import { AppShell } from "@/components/AppShell";
 import { useData } from "@/lib/db/DataContext";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bell, BookMarked, CalendarClock, ChevronRight, Clock, Download, Edit3, Moon, Repeat, StickyNote, Sun, Trash2, Upload, Monitor, BarChart3, RefreshCw, GraduationCap, Mail } from "lucide-react";
+import { Bell, BookMarked, CalendarClock, ChevronRight, Clock, Download, Edit3, Moon, Repeat, StickyNote, Sun, Trash2, Upload, Monitor, BarChart3, RefreshCw, GraduationCap, Mail, Sparkles } from "lucide-react";
 import { fireNotification, isNotificationSupported, requestNotificationPermission } from "@/lib/notifications/notify";
 import { syncAllMCQFromSupabase } from "@/lib/content/mcqSync";
 import { syncAllTopicContentFromSupabase } from "@/lib/content/topicContentSync";
 import { getMCQSyncMeta, getTopicContentSyncMeta } from "@/lib/db/db";
+import { checkForUpdate, downloadAndInstallUpdate, getCurrentAppVersion, type UpdateInfo, type UpdateProgress } from "@/lib/update/appUpdate";
+import { Capacitor } from "@capacitor/core";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "सेटिंग्स" }, { name: "description", content: "थीम, अधिसूचना, डेटा प्रबंधन।" }] }),
@@ -22,6 +24,38 @@ function SettingsPage() {
   const [syncInfo, setSyncInfo] = useState<{ lastFullSyncAt?: number; totalQuestions?: number }>({});
   const [contentSyncing, setContentSyncing] = useState(false);
   const [contentSyncInfo, setContentSyncInfo] = useState<{ lastFullSyncAt?: number; totalTopics?: number }>({});
+
+  // --- App update state ---
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
+  const isAndroidApp = Capacitor.getPlatform() === "android";
+
+  const handleCheckUpdate = async () => {
+    setUpdateChecking(true);
+    setUpdateProgress(null);
+    try {
+      const info = await checkForUpdate();
+      setUpdateInfo(info);
+      if (!info.available) {
+        toast.success("आप पहले से ही नवीनतम वर्शन पर हैं।");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "अपडेट चेक नहीं हो पाया।");
+    } finally {
+      setUpdateChecking(false);
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo?.downloadUrl) return;
+    try {
+      await downloadAndInstallUpdate(updateInfo.downloadUrl, setUpdateProgress);
+    } catch (err) {
+      setUpdateProgress({ stage: "error", message: err instanceof Error ? err.message : "अपडेट इंस्टॉल नहीं हो पाया।" });
+      toast.error(err instanceof Error ? err.message : "अपडेट इंस्टॉल नहीं हो पाया।");
+    }
+  };
 
   useEffect(() => {
     getMCQSyncMeta().then((meta) => {
@@ -236,6 +270,68 @@ function SettingsPage() {
             </div>
           )}
         </Section>
+
+        {isAndroidApp && (
+          <Section title="ऐप अपडेट">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">वर्तमान वर्शन</span>
+              <span className="text-xs font-bold tabular-nums">v{getCurrentAppVersion()}</span>
+            </div>
+
+            {!updateInfo && (
+              <button onClick={handleCheckUpdate} disabled={updateChecking}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap disabled:opacity-50">
+                <Sparkles className={`h-4 w-4 ${updateChecking ? "animate-pulse" : ""}`} />
+                {updateChecking ? "चेक हो रहा है…" : "अपडेट चेक करें"}
+              </button>
+            )}
+
+            {updateInfo && !updateInfo.available && !updateProgress && (
+              <button onClick={handleCheckUpdate} disabled={updateChecking}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2.5 text-sm font-semibold touch-tap disabled:opacity-50">
+                <RefreshCw className="h-4 w-4" /> दोबारा चेक करें (नवीनतम वर्शन)
+              </button>
+            )}
+
+            {updateInfo?.available && updateProgress?.stage !== "done" && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+                <p className="mb-2 text-sm font-bold">नया वर्शन उपलब्ध: v{updateInfo.latestVersion}</p>
+
+                {!updateProgress && (
+                  <button onClick={handleInstallUpdate}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg gradient-primary py-2.5 text-sm font-bold touch-tap">
+                    <Download className="h-4 w-4" /> अभी अपडेट करें
+                  </button>
+                )}
+
+                {updateProgress && updateProgress.stage !== "error" && (
+                  <div>
+                    <p className="mb-1.5 text-xs text-muted-foreground">{updateProgress.message}</p>
+                    {typeof updateProgress.percent === "number" && (
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-full gradient-primary transition-all" style={{ width: `${updateProgress.percent}%` }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {updateProgress?.stage === "error" && (
+                  <div>
+                    <p className="mb-2 text-xs text-destructive">{updateProgress.message}</p>
+                    <button onClick={handleInstallUpdate}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input py-2 text-sm font-semibold touch-tap">
+                      <RefreshCw className="h-4 w-4" /> फिर से कोशिश करें
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {updateProgress?.stage === "done" && (
+              <p className="text-xs font-semibold text-primary">{updateProgress.message}</p>
+            )}
+          </Section>
+        )}
 
         <Section title="डेवलपर जानकारी">
           <div className="flex items-start gap-3 py-1.5">
