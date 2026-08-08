@@ -4,9 +4,17 @@ import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { readFileSync } from "node:fs";
+
+// package.json ka current version build ke time JS bundle me inject hota hai
+// (in-app update checker isi __APP_VERSION__ ko GitHub ke latest release se compare karta hai)
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8"));
 
 // Is file root project ke root folder me daalni hai (jaha package.json hai)
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     // path aliases (@/...) ke liye
     viteTsConfigPaths({

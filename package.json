@@ -14,7 +14,9 @@
   "dependencies": {
     "@capacitor/android": "^7.4.0",
     "@capacitor/core": "^7.4.0",
+    "@capacitor/filesystem": "^7.1.4",
     "@capacitor/local-notifications": "^7.0.3",
+    "@m430/capacitor-app-install": "^0.0.3",
     "@supabase/supabase-js": "^2.45.4",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
